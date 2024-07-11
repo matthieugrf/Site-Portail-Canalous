@@ -1,6 +1,4 @@
-# Nom du Projet
-
-Description du projet.
+# Site Portail Canalous
 
 ## Prérequis
 
@@ -15,36 +13,66 @@ Description du projet.
 ```bash
 git clone https://github.com/votre-repo.git
 cd votre-repo
+```
 
 ### 2. Configuration du Backend 
 
-#### a. Allez dans le répertoire backend bash Copier le code `cd backend'
+#### a. Allez dans le répertoire backend bash Copier le code
 
+```bash
+cd backend
+```
 
-#### b. Installer les dépendances bash Copier le code `npm ci'
+#### b. Installer les dépendances bash Copier le code
 
+```bash
+npm ci
+```
 
 #### c. Configuration de la base de données 
 * Assurez-vous que MySQL est installé et en cours d'exécution. 
 * Créez la base de données et les tables nécessaires. 
 * Créez un fichier `.env` à la racine du dossier `backend` et configurez les paramètres de la base de données. Exemple :
-
+```txt
 DB_HOST=localhost 
 DB_USER=votre-username 
 DB_PASSWORD=votre-password
 DB_NAME=votre-database
 DB_PORT=votre-DB_PORT
-PORT=port_du_front
+PORT=port_du_server
+```
+#### d. Démarrer le serveur backend bash : Copier le code 
 
-#### d. Démarrer le serveur backend bash Copier le code `npm start'
+```bash
+node server.js
+```
 
 ### 3. Configuration du Frontend 
 
-#### a. Allez dans le répertoire frontend bash Copier le code `cd ../frontend`
+#### a. Allez dans le répertoire frontend bash : Copier le code 
 
-#### b. Installer les dépendances npm bash Copier le code `npm ci`
+```bash
+cd ../frontend
+```
 
-#### c. Démarrer l'application frontend bash Copier le code `npm start`
+#### b. Installer les dépendances npm bash Copier le code 
+
+```bash
+npm ci
+```
+#### c. Configuration de la connection avec le backend 
+
+* Créez un fichier `.env` à la racine du dossier `frontend` et configurez les paramètres de la base de données. Exemple :
+```txt
+REACT_APP_API_URL=url_server
+REACT_APP_GOOGLE_MAPS_API_KEY=your_google_maps_api
+```
+
+#### d. Démarrer l'application frontend bash Copier le code 
+
+```bash
+npm start
+```
 
 ### 4. Utilisation 
 
@@ -54,16 +82,18 @@ PORT=port_du_front
 
 ### Dépendances Backend
 
+```txt
 express
 body-parser
 cors
 dotenv
 mysql2
 fastpriorityqueue
-
+```
 
 ###  Dépendances Frontend
 
+```txt
 @react-google-maps/api
 @testing-library/jest-dom
 @testing-library/react
@@ -83,7 +113,7 @@ react-leaflet-markercluster
 react-router-dom
 react-scripts
 web-vitals
-
+```
 
 
 ### Remarques
@@ -96,6 +126,3 @@ Mettez à jour les variables d'environnement dans le fichier .env selon vos conf
 
 - **Utilisation de `npm ci`** : Cette commande installe les dépendances exactement comme spécifiées dans le fichier `package-lock.json`, assurant ainsi une cohérence entre les environnements.
 - **Fichier `.env`** : Assurez-vous que les utilisateurs créent et configurent ce fichier pour les variables d'environnement sensibles comme les informations de connexion à la base de données.
-- **Structure du projet** : Donnez une vue d'ensemble de la structure du projet pour que les contributeurs sachent où se trouvent les fichiers clés.
-
-En suivant ce `README.md`, vous garantissez une configuration et une installation cohérentes pour votre projet sur différentes machines.
