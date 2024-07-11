@@ -276,94 +276,33 @@ async function getData() {
   const [portsVoies] = await pool.query(`SELECT PortVoie_PortId, PortVoie_VoieId, PortVoie_Pk FROM mappyfluvial_ports_voies`);
   return { ports, troncons, portsVoies };
 }
-exports.calculateItinerary = async (points) => {
+
+exports.calculateItinerary = async (startId, endId) => {
   try {
     const { ports, troncons, portsVoies } = await getData();
     const data = { ports, troncons, portsVoies };
     const aggregatedPortsVoies = aggregatePortsVoies(portsVoies);
     const returnData = [];
 
-    let currentStartId = points[0];
-    let fastestPathSegments = [];
-    let fastestWeight = 0;
-    for (let i = 1; i < points.length; i++) {
-      const segment = await dijkstra(data, currentStartId, points[i], troncon => calculateWeights(troncon, aggregatedPortsVoies).then(res => res.time_weight));
-      if (!segment) {
-        return { error: { message: 'No path found' } };
-      }
-      if (i==points.length-1) {
-        fastestPathSegments.push(segment.path);
-      }
-      else {
-        fastestPathSegments.push(segment.path.slice(0, segment.path.length - 1));
-      }
-      fastestWeight += segment.weight;
-      currentStartId = points[i];
-    }
-    const fastestPath = fastestPathSegments.flat();
-    console.log('fastestPath :', fastestPath);
-    if (fastestPath.length > 0) {
-      const fastestPathDetails = await calculatePathDetails(troncons, fastestPath, aggregatedPortsVoies);
-      returnData.push({ path: fastestPath, details: fastestPathDetails, name: 'fastestPath' });
+    const fastestPath = await dijkstra(data, startId, endId, async troncon => (await calculateWeights(troncon, aggregatedPortsVoies)).time_weight);
+    if (fastestPath) {
+      const fastestPathDetails = await calculatePathDetails(troncons, fastestPath.path, aggregatedPortsVoies);
+      returnData.push({ fastestPath, details: fastestPathDetails, name: 'fastestPath' });
     }
 
-    currentStartId = points[0];
-    let shortestPathSegments = [];
-    let shortestWeight = 0;
-    for (let i = 1; i < points.length; i++) {
-      const segment = await dijkstra(data, currentStartId, points[i], troncon => calculateWeights(troncon, aggregatedPortsVoies).then(res => res.troncon_km));
-      if (!segment) {
-        return { error: { message: 'No path found' } };
-      }
-      if (i==points.length-1) {
-        shortestPathSegments.push(segment.path);
-      }
-      else {
-        shortestPathSegments.push(segment.path.slice(0, segment.path.length - 1));
-      }
-      shortestWeight += segment.weight;
-      currentStartId = points[i];
+    const shortestPath = await dijkstra(data, startId, endId, async troncon => (await calculateWeights(troncon, aggregatedPortsVoies)).troncon_km);
+    if (shortestPath) {
+      const shortestPathDetails = await calculatePathDetails(troncons, shortestPath.path, aggregatedPortsVoies);
+      returnData.push({ shortestPath, details: shortestPathDetails, name: 'shortestPath' });
     }
 
-
-
-    const shortestPath = shortestPathSegments.flat();
-    if (shortestPath.length > 0) {
-      if (!pathsAreEqual(shortestPath, fastestPath)) {
-        const shortestPathDetails = await calculatePathDetails(troncons, shortestPath, aggregatedPortsVoies);
-        returnData.push({ path: shortestPath, details: shortestPathDetails, name: 'shortestPath' });
-      }
+    const lessEclusesPath = await dijkstra(data, startId, endId, troncon => troncon.Troncon_Ecluses);
+    if (lessEclusesPath) {
+      const lessEclusesPathDetails = await calculatePathDetails(troncons, lessEclusesPath.path, aggregatedPortsVoies);
+      returnData.push({ lessEclusesPath, details: lessEclusesPathDetails, name: 'lessEclusesPath' });
     }
 
-    currentStartId = points[0];
-    let lessEclusesPathSegments = [];
-    let lessEclusesWeight = 0;
-    for (let i = 1; i < points.length; i++) {
-      const segment = await dijkstra(data, currentStartId, points[i], troncon => troncon.Troncon_Ecluses);
-      if (!segment) {
-        return { error: { message: 'No path found' } };
-      }
-      if (i==points.length-1) {
-        lessEclusesPathSegments.push(segment.path);
-      }
-      else {
-        lessEclusesPathSegments.push(segment.path.slice(0, segment.path.length - 1));
-      }
-      lessEclusesWeight += segment.weight;
-      currentStartId = points[i];
-    }
-
-    const lessEclusesPath = lessEclusesPathSegments.flat();
-    
-    
-    if (lessEclusesPath.length > 0) {
-      if (!pathsAreEqual(lessEclusesPath, fastestPath) && !pathsAreEqual(lessEclusesPath, shortestPath)) {
-        const lessEclusesPathDetails = await calculatePathDetails(troncons, lessEclusesPath, aggregatedPortsVoies);
-        returnData.push({ path: lessEclusesPath, details: lessEclusesPathDetails, name: 'lessEclusesPath' });
-      }
-    }
-
-    if (returnData.length === 0) {
+    if (!fastestPath && !shortestPath && !lessEclusesPath) {
       console.log('No path found');
       return { error: { message: 'No path found' } };
     }

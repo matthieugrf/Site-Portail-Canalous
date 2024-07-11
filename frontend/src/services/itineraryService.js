@@ -2,10 +2,10 @@ import axios from 'axios';
 const API_URL = process.env.REACT_APP_API_URL;
 
 
-export const calculateItinerary = async (startId, endId) => {
+export const calculateItinerary = async (pointIds) => {
   try {
     const response = await axios.get(`${API_URL}/itinerary/calculate`, {
-      params: { startId, endId },
+      params: { pointIds: pointIds.join(',') },
     });
     return response.data;
   } catch (error) {

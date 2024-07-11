@@ -7,7 +7,7 @@ exports.getPortsByCanalId = async (req, res) => {
   console.log('voie_id:', voie_id);
   try {
     const [rows] = await pool.query(
-      `SELECT Port_Nom, Port_Id 
+      `SELECT Port_Nom, Port_Id Port_MapX, Port_MapY
        FROM mappyfluvial_ports_voies
        LEFT JOIN mappyfluvial_ports ON Port_Id = PortVoie_PortId
        AND Port_Type IN (1,2,4)
@@ -18,7 +18,9 @@ exports.getPortsByCanalId = async (req, res) => {
 
     const ports = rows.map(row => ({ 
       Port_Nom: row.Port_Nom ,
-      Port_Id: row.Port_Id
+      Port_Id: row.Port_Id,
+      Port_MapX: row.Port_MapX,
+      Port_MapY: row.Port_MapY
     }));
     res.json({ ports });
   } catch (error) {
@@ -84,17 +86,14 @@ exports.getPorts = async (req, res) => {
 
 
 exports.calculateItinerary = async (req, res) => {
-  const { startId, endId } = req.query;
-  console.log('startId:', startId, 'endId:', endId);
-  if (!startId || !endId) {
-    return res.status(400).json({ error: 'startId and endId are required' });
-  }
-
   try {
-    const itinerary = await itineraryService.calculateItinerary(parseInt(startId), parseInt(endId));
-    res.json({ success: true, itinerary });
+    const { pointIds } = req.query;
+    const points = pointIds.split(',').map(id => parseInt(id, 10));
+    console.log('calculateItinerary:', points);
+    const result = await itineraryService.calculateItinerary(points);
+    res.json(result);
   } catch (error) {
     console.error('Error calculating itinerary:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).send('Server Error');
   }
 };
