@@ -14,19 +14,18 @@ const containerStyle = {
 const defaultCenter = { lat: 46.603354, lng: 1.888334 };
 
 const ItineraryPage = () => {
-  const [startSearchTerm, setStartSearchTerm] = useState('');
-  const [endSearchTerm, setEndSearchTerm] = useState('');
-  const [startSearchResults, setStartSearchResults] = useState([]);
-  const [endSearchResults, setEndSearchResults] = useState([]);
-  const [startPort, setStartPort] = useState(null);
-  const [endPort, setEndPort] = useState(null);
   const [ports, setPorts] = useState([]);
   const [itineraries, setItineraries] = useState([]);
   const [selectedItineraryIndex, setSelectedItineraryIndex] = useState(null);
   const [selectedPort, setSelectedPort] = useState(null);
   const [center, setCenter] = useState(defaultCenter);
   const [map, setMap] = useState(null);
-  
+  const [steps, setSteps] = useState([
+    { id: null, searchTerm: '', searchResults: [] },
+    { id: null, searchTerm: '', searchResults: [] },
+  ]);
+  const [nearestPort, setNearestPort] = useState(null);
+
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY
@@ -48,51 +47,31 @@ const ItineraryPage = () => {
       });
     }
 
-    if (nearestPort) {
-      setStartPort(nearestPort);
-      setStartSearchTerm(nearestPort.Port_Nom);
-    }
+    setNearestPort(nearestPort);
   }, [ports]);
 
-  const debouncedStartSearch = useCallback(
-    debounce(async (query) => {
+  const debouncedSearch = useCallback(
+    debounce(async (query, index) => {
       if (query && query.length > 0) {
         try {
           const data = await searchPorts(query);
-          setStartSearchResults(data.ports.filter(p => p.Port_Id !== startPort?.Port_Id && p.Port_Id !== endPort?.Port_Id));
+          const newSteps = [...steps];
+          newSteps[index].searchResults = data.ports.filter(p => !steps.map(step => step.id).includes(p.Port_Id));
+          if (index === 0 && nearestPort) {
+            newSteps[index].searchResults.unshift({ ...nearestPort, Port_Nom: 'Port le plus proche' });
+          }
+          setSteps(newSteps);
         } catch (error) {
           console.error('Erreur lors de la recherche des ports:', error);
         }
       } else {
-        setStartSearchResults([]);
+        const newSteps = [...steps];
+        newSteps[index].searchResults = index === 0 && nearestPort ? [{ ...nearestPort, Port_Nom: 'Port le plus proche' }] : [];
+        setSteps(newSteps);
       }
     }, 300),
-    [startPort, endPort]
+    [steps, nearestPort]
   );
-
-  const debouncedEndSearch = useCallback(
-    debounce(async (query) => {
-      if (query && query.length > 0) {
-        try {
-          const data = await searchPorts(query);
-          setEndSearchResults(data.ports.filter(p => p.Port_Id !== startPort?.Port_Id && p.Port_Id !== endPort?.Port_Id));
-        } catch (error) {
-          console.error('Erreur lors de la recherche des ports:', error);
-        }
-      } else {
-        setEndSearchResults([]);
-      }
-    }, 300),
-    [startPort, endPort]
-  );
-
-  useEffect(() => {
-    debouncedStartSearch(startSearchTerm);
-  }, [startSearchTerm, debouncedStartSearch]);
-
-  useEffect(() => {
-    debouncedEndSearch(endSearchTerm);
-  }, [endSearchTerm, debouncedEndSearch]);
 
   useEffect(() => {
     const fetchPorts = async () => {
@@ -124,71 +103,104 @@ const ItineraryPage = () => {
     }
   }, [ports, findNearestPort]);
 
-  const handleStartSearchChange = (e) => {
-    setStartSearchTerm(e.target.value);
+  const handleSearchChange = (e, index) => {
+    const newSteps = [...steps];
+    newSteps[index].searchTerm = e.target.value;
+    setSteps(newSteps);
+    debouncedSearch(e.target.value, index);
   };
 
-  const handleEndSearchChange = (e) => {
-    setEndSearchTerm(e.target.value);
-  };
-
-  const handleSelectPort = (port, type) => {
-    if (type === 'start') {
-      setStartPort(port);
-      setStartSearchTerm(port.Port_Nom);
-      setStartSearchResults([]);
-    } else {
-      setEndPort(port);
-      setEndSearchTerm(port.Port_Nom);
-      setEndSearchResults([]);
-    }
+  const handleSelectPort = (port, index) => {
+    const newSteps = [...steps];
+    newSteps[index] = { id: port.Port_Id, searchTerm: port.Port_Nom, searchResults: [] };
+    setSteps(newSteps);
   };
 
   const handleCalculateItinerary = async () => {
-    if (!startPort?.Port_Id || !endPort?.Port_Id) {
-      alert('Veuillez sélectionner les ports de départ et d\'arrivée');
+    const points = steps.map(step => step.id).filter(id => id !== null);
+    if (points.length < 2) {
+      alert('Veuillez sélectionner au moins un port de départ et un port d\'arrivée');
       return;
     }
 
     try {
-      const data = await calculateItinerary(startPort.Port_Id, endPort.Port_Id);
-      console.log('Itineraries:', data.itinerary)
-      setItineraries(data.itinerary);
+      const data = await calculateItinerary(points);
+      console.log('Itineraries:', data);
+      setItineraries(data);
+      setSelectedItineraryIndex(0);
+      const bounds = calculateBounds(itineraries[selectedItineraryIndex]);
+      map.fitBounds(bounds);
     } catch (error) {
       console.error('Erreur lors du calcul de l\'itinéraire:', error);
     }
   };
 
+  const handleAddStep = () => {
+    const newSteps = [...steps];
+    newSteps.splice(steps.length - 1, 0, { id: null, searchTerm: '', searchResults: [] });
+    setSteps(newSteps);
+  };
+
+  const handleRemoveStep = (index) => {
+    const newSteps = [...steps];
+    newSteps.splice(index, 1);
+    setSteps(newSteps);
+  };
+
+  const handleMoveStep = (index, direction) => {
+    const newSteps = [...steps];
+    const [removedStep] = newSteps.splice(index, 1);
+    newSteps.splice(index + direction, 0, removedStep);
+    setSteps(newSteps);
+  };
+
   const handleSwapPorts = () => {
-    const temp = startPort;
-    setStartPort(endPort);
-    setEndPort(temp);
-    setStartSearchTerm(endPort ? endPort.Port_Nom : '');
-    setEndSearchTerm(startPort ? startPort.Port_Nom : '');
+    const newSteps = [...steps];
+    [newSteps[0], newSteps[newSteps.length - 1]] = [newSteps[newSteps.length - 1], newSteps[0]];
+    setSteps(newSteps);
   };
 
   const handleMarkerClick = (port) => {
     setSelectedPort(port);
   };
 
-  const handleSetPortFromMap = (port, type) => {
-    if (type === 'start') {
-      setStartPort(port);
-      setStartSearchTerm(port.Port_Nom);
-    } else {
-      setEndPort(port);
-      setEndSearchTerm(port.Port_Nom);
-    }
+  const handleSetPortFromMap = (port, index) => {
+    const newSteps = [...steps];
+    newSteps[index] = { id: port.Port_Id, searchTerm: port.Port_Nom, searchResults: [] };
+    setSteps(newSteps);
     setSelectedPort(null);
   };
 
+  const handleAddStepFromMap = (port) => {
+    const newSteps = [...steps];
+    newSteps.splice(steps.length - 1, 0, { id: port.Port_Id, searchTerm: port.Port_Nom, searchResults: [] });
+    setSteps(newSteps);
+    setSelectedPort(null);
+  };
+
+  const calculateBounds = (itinerary) => {
+    const bounds = new window.google.maps.LatLngBounds();
+    if (!itinerary || !itinerary.details || !itinerary.details.paths) return bounds;
+  
+    itinerary.details.paths.forEach(troncon => {
+      troncon.path.forEach(point => {
+        bounds.extend(new window.google.maps.LatLng(point.lat, point.lng));
+      });
+    });
+  
+    return bounds;
+  };
   const handleItinerarySelection = (index) => {
     setSelectedItineraryIndex(index);
+    if (map && itineraries[index]) {
+      const bounds = calculateBounds(itineraries[index]);
+      map.fitBounds(bounds);
+    }
   };
 
   const userLocationIcon = isLoaded && {
     path: window.google.maps.SymbolPath.CIRCLE,
-    scale: 10,
+    scale: 15,
     fillColor: '#007BFF',
     fillOpacity: 1,
     strokeWeight: 0,
@@ -243,7 +255,6 @@ const ItineraryPage = () => {
   };
 
   const getItinerarySummaries = () => {
-    console.log('summury itineraries: ');
     return itineraries.map((itinerary, index) => {
       const name = itinerary.name;
       const details = itinerary.details;
@@ -264,44 +275,45 @@ const ItineraryPage = () => {
         <Col md={4}>
           <h1>Bienvenue</h1>
           <div className="search-container">
-            <InputGroup className="mb-3">
-              <FormControl
-                placeholder="Choisissez un point de départ ou cliquez"
-                aria-label="Choisissez un point de départ ou cliquez"
-                aria-describedby="start-port"
-                value={startSearchTerm}
-                onChange={handleStartSearchChange}
-              />
-              <InputGroup.Text id="start-port">🚩</InputGroup.Text>
-            </InputGroup>
+            {steps.map((step, index) => (
+              <InputGroup className="mb-3" key={index}>
+                <FormControl
+                  placeholder={`Choisissez un ${index === 0 ? 'point de départ' : index === steps.length - 1 ? 'point d\'arrivée' : 'étape'}`}
+                  aria-label={`Choisissez un ${index === 0 ? 'point de départ' : index === steps.length - 1 ? 'point d\'arrivée' : 'étape'}`}
+                  value={step.searchTerm}
+                  onChange={(e) => handleSearchChange(e, index)}
+                  onClick={() => {
+                    if (index === 0 && nearestPort && !steps[index].searchResults.find(p => p.Port_Id === nearestPort.Port_Id)) {
+                      const newSteps = [...steps];
+                      newSteps[index].searchResults.unshift({ ...nearestPort, Port_Nom: 'Port le plus proche' });
+                      setSteps(newSteps);
+                    }
+                  }}
+                />
+                <InputGroup.Text>{index === 0 ? '🚩' : index === steps.length - 1 ? '📍' : '➡️'}</InputGroup.Text>
+                {index > 0 && index < steps.length - 1 && (
+                  <>
+                    <Button variant="danger" onClick={() => handleRemoveStep(index)} className="remove-step-button">X</Button>
+                    <Button variant="secondary" onClick={() => handleMoveStep(index, -1)} className="move-step-button">↑</Button>
+                    <Button variant="secondary" onClick={() => handleMoveStep(index, 1)} className="move-step-button">↓</Button>
+                  </>
+                )}
+              </InputGroup>
+            ))}
             <Button variant="secondary" onClick={handleSwapPorts} className="swap-button">
               <img src={swapIcon} alt="Swap" className="swap-icon" />
             </Button>
-            <InputGroup className="mb-3">
-              <FormControl
-                placeholder="Choisissez une destination..."
-                aria-label="Choisissez une destination..."
-                aria-describedby="end-port"
-                value={endSearchTerm}
-                onChange={handleEndSearchChange}
-              />
-              <InputGroup.Text id="end-port">📍</InputGroup.Text>
-            </InputGroup>
+            <Button variant="secondary" onClick={handleAddStep} className="add-step-button">Ajouter une étape</Button>
           </div>
-          <ListGroup className="mt-4">
-            {startSearchResults.map((port, index) => (
-              <ListGroup.Item key={index} onClick={() => handleSelectPort(port, 'start')}>
-                {port.Port_Nom}
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
-          <ListGroup className="mt-4">
-            {endSearchResults.map((port, index) => (
-              <ListGroup.Item key={index} onClick={() => handleSelectPort(port, 'end')}>
-                {port.Port_Nom}
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
+          {steps.map((step, stepIndex) => (
+            <ListGroup className="mt-4" key={stepIndex}>
+              {step.searchResults.map((port, index) => (
+                <ListGroup.Item key={index} onClick={() => handleSelectPort(port, stepIndex)}>
+                  {port.Port_Nom}
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          ))}
           <Button className="mt-4" onClick={handleCalculateItinerary}>Calculer l'itinéraire</Button>
           {itineraries.length > 0 && (
             <div className="mt-4">
@@ -374,11 +386,14 @@ const ItineraryPage = () => {
                   <div>
                     <h2>{selectedPort.Port_Nom}</h2>
                     <p>Plus de détails ici...</p>
-                    <Button onClick={() => handleSetPortFromMap(selectedPort, 'start')}>
+                    <Button onClick={() => handleSetPortFromMap(selectedPort, 0)}>
                       Définir comme départ
                     </Button>
-                    <Button onClick={() => handleSetPortFromMap(selectedPort, 'end')}>
+                    <Button onClick={() => handleSetPortFromMap(selectedPort, steps.length - 1)}>
                       Itinéraire vers ce port
+                    </Button>
+                    <Button onClick={() => handleAddStepFromMap(selectedPort)}>
+                      Ajouter comme étape
                     </Button>
                   </div>
                 </InfoWindow>

@@ -110,7 +110,7 @@ hr {
   background: white;
   border: 1px solid #ccc;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  z-index: 900;
+  z-index: 5;
 }
 
 .legend-box h4 {
@@ -134,7 +134,7 @@ hr {
   background: white;
   border: 1px solid #ccc;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  z-index: 900;
+  z-index: 5;
 }
 
 .itinerary-box h4 {
@@ -148,28 +148,4 @@ hr {
 
 .itinerary-box input {
   margin-right: 5px;
-}
-
-.icon-orange {
-  background-color: orange;
-}
-
-.icon-yellow {
-  background-color: yellow;
-}
-
-.icon-red {
-  background-color: red;
-}
-
-.icon-gray {
-  background-color: gray;
-}
-
-.icon-blue {
-  background-color: blue;
-}
-
-.icon-purple {
-  background-color: purple;
 }

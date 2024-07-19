@@ -65,9 +65,9 @@ exports.getPorts = async (req, res) => {
   console.log('getPorts');
   try {
     const [rows] = await pool.query(
-      `SELECT Port_Id, Port_Nom, Port_MapX, Port_MapY 
+      `SELECT Port_Id, Port_Nom, Port_MapX, Port_MapY, Port_Type, Port_Embranchement_Info
        FROM mappyfluvial_ports 
-       WHERE Port_Type IN (1,2,4) AND Port_Nom != '' AND Port_Export_Fluvialcap = 1 
+       WHERE Port_Nom != '' AND Port_Export_Fluvialcap = 1 
        ORDER BY Port_Nom ASC`
     );
 
@@ -76,6 +76,8 @@ exports.getPorts = async (req, res) => {
       Port_Nom: row.Port_Nom,
       Port_MapX: row.Port_MapX,
       Port_MapY: row.Port_MapY,
+      Port_Type: row.Port_Type,
+      Port_Embranchement_Info: row.Port_Embranchement_Info
     }));
     res.json({ ports });
   } catch (error) {

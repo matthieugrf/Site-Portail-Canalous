@@ -170,7 +170,8 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
   let paths = [];
   let canals = {};
   let tronconWithoutCanal = [];
-
+  let tempsCanal = 0;
+  
   const tronconIds = [];
   for (let i = 0; i < path.length - 1; i++) {
     const tronconId = troncons.find(tr =>
@@ -190,20 +191,26 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
 
     const my_temps = calcule_temps(troncon_Km, troncon.Troncon_Tunnel, troncon.Troncon_Vmax, troncon.Troncon_Ecluses, troncon.Troncon_CoefVitesse, troncon.Troncon_NbPontLevis, troncon.Troncon_Ecluses_Coefficient);
     total_Temps += my_temps;
-
     const tronconLocks = await getLocksByTronconId(tronconId);
     const tronconPontsLevis = await getPontsLevisByTronconId(tronconId);
     const portLoueurs1 = await getLoueursByPortId(troncon.Troncon_Port1Id);
+    const portLoueurs2 = await getLoueursByPortId(troncon.Troncon_Port2Id);
     const portChantiers1 = await getChantiersByPortId(troncon.Troncon_Port1Id);
-
+    const portChantiers2 = await getChantiersByPortId(troncon.Troncon_Port2Id);
+    
     if (canalInfo) {
       if (!canals[voie_emprunte]) {
-        canals[voie_emprunte] = { ...canalInfo, troncons: [] };
+        tempsCanal = 0;
+        canals[voie_emprunte] = { ...canalInfo, troncons: [], order: i };
       }
+      tempsCanal += my_temps;
+      canals[voie_emprunte].tempsCanal = tempsCanal;
       canals[voie_emprunte].troncons.push({
         tronconId,
         Troncon_Port1Id: troncon.Troncon_Port1Id,
         Troncon_Port2Id: troncon.Troncon_Port2Id,
+        port1_pk,
+        port2_pk,
         troncon_Km,
         tronconLocks,
         tronconPontsLevis,
@@ -213,7 +220,10 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
         Troncon_Tunnel: troncon.Troncon_Tunnel,
         Troncon_NbPontLevis: troncon.Troncon_NbPontLevis,
         portChantiers1,
+        portChantiers2,
         portLoueurs1,
+        portLoueurs2,
+        tempsCanal,
       });
     } else {
       tronconWithoutCanal.push({
@@ -252,7 +262,7 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
     total_Temps: total_Temps,
     total_Vmax: total_Vmax.toFixed(2),
     paths,
-    canals,
+    canals: Object.values(canals).sort((a, b) => a.order - b.order),
     tronconWithoutCanal,
   };
 }
