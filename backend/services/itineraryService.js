@@ -167,18 +167,25 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
   let total_Tunnel = 0;
   let total_Temps = 0;
   let total_Vmax = 0;
-  let paths = [];
   let canals = {};
   let tronconWithoutCanal = [];
   let tempsCanal = 0;
-  
   const tronconIds = [];
+  
   for (let i = 0; i < path.length - 1; i++) {
     const tronconId = troncons.find(tr =>
       (tr.Troncon_Port1Id === path[i] && tr.Troncon_Port2Id === path[i + 1]) ||
       (tr.Troncon_Port1Id === path[i + 1] && tr.Troncon_Port2Id === path[i])
     ).Troncon_Id;
     tronconIds.push(tronconId);
+
+  }
+
+
+  const tronconPaths = await getTronconPathsGoogle(tronconIds);
+
+  for (let i = 0; i < tronconIds.length; i++) {
+    const tronconId = tronconIds[i];
     const troncon = await getTronconInfo(tronconId);
     total_Ecluses += troncon.Troncon_Ecluses;
 
@@ -197,7 +204,13 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
     const portLoueurs2 = await getLoueursByPortId(troncon.Troncon_Port2Id);
     const portChantiers1 = await getChantiersByPortId(troncon.Troncon_Port1Id);
     const portChantiers2 = await getChantiersByPortId(troncon.Troncon_Port2Id);
-    
+    const tronconPath = tronconPaths.filter(path => path.Element_TronconId === tronconId);
+    console.log('tronconPath:', tronconPath);
+    tronconPath.forEach(element => {
+      element.lat = parseFloat(element.lat);
+      element.lng = parseFloat(element.lng);
+    });
+    //console.log('all info:', canalInfo, tronconLocks, tronconPontsLevis, portLoueurs1, portLoueurs2, portChantiers1, portChantiers2, tronconPath);
     if (canalInfo) {
       if (!canals[voie_emprunte]) {
         tempsCanal = 0;
@@ -224,6 +237,7 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
         portLoueurs1,
         portLoueurs2,
         tempsCanal,
+        path : tronconPath,
       });
     } else {
       tronconWithoutCanal.push({
@@ -243,25 +257,12 @@ async function calculatePathDetails(troncons, path, aggregatedPortsVoies) {
       });
     }
   }
-
-  const tronconPaths = await getTronconPathsGoogle(tronconIds);
-  tronconIds.forEach(element => {
-    const tronconPath = tronconPaths.filter(path => path.Element_TronconId === element);
-    tronconPath.forEach(element => {
-      element.lat = parseFloat(element.lat);
-      element.lng = parseFloat(element.lng);
-    });
-
-    paths.push({ path: tronconPath });
-  });
-
   return {
     total_Km,
     total_Ecluses,
     total_Tunnel: total_Tunnel.toFixed(2),
     total_Temps: total_Temps,
     total_Vmax: total_Vmax.toFixed(2),
-    paths,
     canals: Object.values(canals).sort((a, b) => a.order - b.order),
     tronconWithoutCanal,
   };
